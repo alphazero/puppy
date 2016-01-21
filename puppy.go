@@ -36,7 +36,7 @@ var conf = struct {
 	statPeriodSec, alertPeriodMin     uint
 	logJournalSize, alertsJournalSize uint
 }{
-	"", 100, 10000, 1, 1, 1024, 1024,
+	"", 100, 10000, 1, 5, 1024, 1024,
 }
 
 func init() {
@@ -86,6 +86,8 @@ func main() {
 	var stat int
 	var e error
 
+	/// best effort for clean shutdown /////////////////////////////////////
+
 	/* insure cleanup of terminal */
 	defer func(stat0 *int, e0 *error) {
 		cleanup()
@@ -104,6 +106,7 @@ func main() {
 			*stat0 = -1
 		}
 	}(&stat, &e)
+
 	/// config & setup /////////////////////////////////////////////////////
 
 	flag.Parse()
@@ -117,7 +120,8 @@ func main() {
 
 	alertsJournal = newRingBuffer(conf.alertsJournalSize)
 	logJournal = newRingBuffer(conf.logJournalSize)
-	resolution := uint16(60 * conf.alertPeriodMin / conf.statPeriodSec)
+	//	resolution := uint16(60 * conf.alertPeriodMin / conf.statPeriodSec)
+	resolution := uint16(conf.alertPeriodMin / conf.statPeriodSec) // TODO
 	accessMetrics, e = newMetrics(resolution)
 	if e != nil {
 		stat = 10 // TODO let's clean this up ..
@@ -131,7 +135,8 @@ func main() {
 	defer stats_timer.Stop()
 
 	// alert timer
-	alert_timer := time.NewTicker(time.Minute * time.Duration(conf.alertPeriodMin))
+	//	alert_timer := time.NewTicker(time.Minute * time.Duration(conf.alertPeriodMin))
+	alert_timer := time.NewTicker(time.Second * time.Duration(conf.alertPeriodMin))
 	defer alert_timer.Stop()
 
 	/* -- signals --- */
@@ -249,21 +254,20 @@ func checkTraffic() {
 		total += obj.(*accessCounter).total
 	}
 
-	cls()
-	ttycmd(HOME)
-	fmt.Fprintf(os.Stderr, "made it")
-
-	// all ok. Did we recover or has it been blue skies all along?
 	if total < conf.trafficLimitHigh {
+		/* all ok. did we recover? */
 		if activeAlert != nil && activeAlert.typ == alertRaised {
 			activeAlert, _ = activeAlert.recovered(time.Now())
 		} else {
 			activeAlert = nil
 		}
-		return
+	} else {
+		/* trouble in paradise */
+		activeAlert, _ = newAlert(total, time.Now()) /* safe to not check error here */
 	}
 
-	// raise alert
-	activeAlert, _ = newAlert(total, time.Now()) /* safe to not check error here */
+	if activeAlert != nil {
+		alertsJournal.add(activeAlert)
+	}
 	return
 }

@@ -238,15 +238,21 @@ func displayAlerts() error {
 	ttycmd(HOME)
 	stdViewHeader("alerts", 1)
 
-	entries := alertsJournal.last(rows - 3)
-
+	viewportLim := rows - 3
+	entries := alertsJournal.last(viewportLim)
+	cnt := uint(len(entries))
+	sak := viewportLim - cnt // scroll adjust factor
 	/* view port */
-	for n := uint(1); n <= uint(len(entries)); n++ {
-		move(rows-n, 1)
+	for n := uint(1); n <= cnt; n++ {
+		move(rows-n-sak, 1)
 		ttycmd(CLEARLINE)
-		fmt.Printf("%s", entries[n-1])
+		alrt := entries[n-1]
+		if n == 1 && alrt == activeAlert {
+			fgcolor(1)
+		}
+		fmt.Printf("%s", alrt)
+		ttycmd(NORMTEXT)
 	}
-	ttycmd(NORMTEXT)
 
 	stdViewFooter()
 	return nil
