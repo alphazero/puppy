@@ -46,6 +46,8 @@ func nextAlertId() (id uint16) {
 //
 // structure encapsulates a notice regarding an alert (raised or recovered).
 // Note that the associated pair (rasied, recovered) share the same id.
+// For globally unique identifiers, we can mux id & timestamp (which will be
+// unique).
 type alert struct {
 	id        uint16
 	typ       alertType
@@ -57,6 +59,7 @@ type alert struct {
 //       given that msg is directly accessible.
 func (p *alert) String() string { return p.msg }
 
+// creates a new alert-raised (notice). Returns error on zero-value ts.
 func newAlert(reqcnt uint, ts time.Time) (*alert, error) {
 
 	if ts.IsZero() {
@@ -68,6 +71,9 @@ func newAlert(reqcnt uint, ts time.Time) (*alert, error) {
 	return &alert{id, alertRaised, ts, msg}, nil
 }
 
+// creates the alert-recovered (notice) complement for the reciever.
+// Returns error if receiver is not of type 'alertRaised', or if
+// input arg is zero-value.
 func (p *alert) recovered(ts time.Time) (*alert, error) {
 	if p.typ == alertRecovered {
 		return nil, fmt.Errorf("bug - alert.recovered - invalid - receiver is not a raised alert")
@@ -76,6 +82,6 @@ func (p *alert) recovered(ts time.Time) (*alert, error) {
 		return nil, fmt.Errorf("bug - alert.recovered - assert - timestamp is zero-value")
 	}
 	fmtstr := "Alert {%d} recovered at {%s}"
-	msg := fmt.Sprintf(fmtstr, p.id, ts.Format(time.RFC3339))
+	msg := fmt.Sprintf(fmtstr, p.id, ts.Format(time.RFC3339)) // REVU: may want to use same format for view headers.
 	return &alert{p.id, alertRecovered, ts, msg}, nil
 }

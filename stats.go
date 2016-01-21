@@ -23,6 +23,11 @@ import (
 	"fmt"
 )
 
+// General notes: this initial design of the stateful bits of puppy hasn't
+// been profiled but it is quite likely that any focus on performance should
+// start here. this initial version is aimed at simply providing the required
+// feature set for what is effectively puppy's stateful model.
+
 /// basic counts ////////////////////////////////////////////////////////
 
 // REVU: not strictly necessary. Nod towards future extensibility

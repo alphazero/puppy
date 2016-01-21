@@ -68,6 +68,7 @@ var alertsJournal *ringBuffer
 // cycle (c.f. conf.statPeriodSec) and then compute the snapshot analysis.
 var accessMetrics *metrics
 
+// last snapshot's statistical analysis
 var accessStatistic *statistic
 
 // ----------------------------------------------------------------------
@@ -132,8 +133,6 @@ func main() {
 
 	// tail process
 	var tailproc *tailProc
-
-	//	tailout, tailstop, e = tail(conf.fname)
 	tailproc, e = tail(conf.fname)
 	if e != nil {
 		stat = 1
@@ -191,7 +190,7 @@ func main() {
 				return
 			}
 			accessMetrics.Update(entry)
-			logJournal.add(string(line))
+			logJournal.add(string(line)) // REVU: this optional feature is likely not worth the perf. hit.
 			if currentView.id == logView {
 				displayLog()
 			}

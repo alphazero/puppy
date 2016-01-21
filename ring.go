@@ -19,6 +19,10 @@ package main
 
 import "fmt"
 
+// General note:
+// this needs to be profiled as it is consistently used in the main
+// loop.
+
 // a very basic ring buffer with log/journal semantics. We'll
 // use this to maintain a journal of log-entries and raised alerts.
 type ringBuffer struct {
@@ -46,6 +50,9 @@ func (r *ringBuffer) add(item interface{}) {
 }
 
 // return (up to max) last (FILO) entries
+// REVU: granted that for most uses of this datastructure, the ring will always
+//       be full (at capacity). That said, we really should be breaking out of
+//       the loops on the first 'nil' cell.
 func (r *ringBuffer) last(max uint) []interface{} {
 	if max > r.cap {
 		max = r.cap

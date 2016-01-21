@@ -43,6 +43,7 @@ type logEntry struct {
 	uri        *url.URL
 }
 
+// REVU: BUG: TODO is getting the actual so-called section.
 func (p *logEntry) section() string {
 	return fmt.Sprintf("%s://%s/%s", p.uri.Scheme, p.uri.Host, p.uri.Path)
 }
@@ -55,7 +56,7 @@ func parseW3cCommonLogFormat(line []byte) (entry *logEntry, err error) {
 		err = fmt.Errorf("err - parseW3cCommonLogFormat - unexpected zero-len input")
 		return
 	}
-	if line[0] == '#' { /* ignore directives */
+	if line[0] == '#' { /* ignore log directives & meta-data for now */
 		return
 	}
 	entry = &logEntry{}

@@ -28,9 +28,17 @@ import (
 	"unsafe"
 )
 
+// General note:
+// Again, per the general notes on 'tail' process, various matters
+// are taken for granted given the assumption that the runtime host
+// is a *nix and 'echo', 'stty', etc. are available.
+
 // set on init - used on shutdown
 var stty_restore string
 
+// sets up the attached terminal for puppy's use. Any error here is
+// treated as fatal and will os.Exit without ceremony.
+//
 func init() { // get tty current settings
 	ttystate, e := sttycmd("-g")
 	if e != nil {
@@ -45,6 +53,7 @@ func init() { // get tty current settings
 	}
 }
 
+// puppy is not head-less and requires an attached terminal.
 func checkForTerminal() (e error) {
 	check := func(e error, fd uintptr, stream string) error {
 		if e != nil {
@@ -61,6 +70,11 @@ func checkForTerminal() (e error) {
 	return
 }
 
+// complement to init(), a somewhat vigorous attempt to restore terminal
+// state. Per various (adhoc/functional) tests of various failure/stop
+// modes of puppy (e.g. on quit or on interrupts) this is fine and will
+// not leave the terminal in a messed up state. That said, this needs
+// *nix graybeard code review.
 func restoreTerminal() {
 	var e error
 	cls()
@@ -84,6 +98,11 @@ func restoreTerminal() {
 /////////////////////////////////////////////////////////////////////////
 /// TTY terminal control ////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////
+
+// General note:
+// Basic printf to stdout provides quite a lot of the required functions
+// but we still require use of system calls (for window size) and stty
+// for setting params.
 
 // ----------------------------------------------------------------------
 // ioctl syscalls
@@ -160,6 +179,8 @@ func ttyfmt(s string, codes ...code) {
 // ----------------------------------------------------------------------
 // direct stty
 
+// this is likely the slowest method of directign the TTY but it is only
+// used on startup and shutdown.
 func sttycmd(args ...string) (out []byte, e error) {
 	stty := exec.Command("stty", args...)
 	stty.Stdin = os.Stdin

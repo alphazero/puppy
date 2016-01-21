@@ -25,6 +25,13 @@ import (
 	"os"
 )
 
+// General notes:
+// Initial release of puppy is based on a straight forward data-flow
+// paradigm and a reactive processing and display back-end. As such,
+// user interaction is perceptual but not structural. This fact is
+// underlined by the choice of 'display' rather than 'UI'.
+//
+
 type uiEvent byte
 
 // ----------------------------------------------------------------------
@@ -40,6 +47,9 @@ func pageDown(e uiEvent) bool   { return e == 'n' } /* next */
 
 // returns true if any of the provided comparators (e.g. doQuit())
 // match the receiver.
+//
+// REVU: consider renaming to isIn or isAny for clear expression of the
+//       semantics.
 func (e uiEvent) is(comp ...func(uiEvent) bool) (yes bool) {
 	if len(comp) == 0 {
 		return false
@@ -56,6 +66,7 @@ func (e uiEvent) is(comp ...func(uiEvent) bool) (yes bool) {
 
 // reads input from stdin, converts to a uiEvent, and emits on the
 // returned channel.
+//
 // keeping things simple (and not bothering with tty raw mode), the user
 // input listener assumes a single charachter command entry followed by
 // CR. Validation is delegated to the basic event loop.

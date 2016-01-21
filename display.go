@@ -24,8 +24,20 @@ import (
 	"time"
 )
 
+// General notes:
+//
 // display consists of n distinct 'views'. Views are simply rendered
 // from current state. Each view maintains a scroll state.
+//
+// 'display' and 'views' should not be confused with MVC, as the paradigm
+// is more along the lines of IPD (Input > Process > Display) to keep
+// things simple.
+//
+// Note that display functions are called by the main routine and are
+// not intended for concurrent use. Should a later release add additional
+// output back-ends (e.g. a network endpoint), either a channel based
+// event model needs to be used, or the puppy model needs to become
+// concurrent (which is probably not a good idea ;)
 
 func init() {
 	if e := checkForTerminal(); e != nil {
@@ -37,6 +49,7 @@ func init() {
 // ----------------------------------------------------------------------
 // display state
 
+// set by updateWinSize (typically to respond to signal.Notify events)
 var rows, cols uint
 
 func updateWinSize() (e error) {
@@ -156,22 +169,6 @@ func displayAlerts() error {
 	return nil
 }
 
-func displayLog0() error {
-	ttycmd(BOLD)
-	entries := logJournal.last(rows - 3)
-
-	fmt.Printf("rows: %d\n", rows)
-	fmt.Printf("journal.buf.cap: %d\n", logJournal.cap)
-	fmt.Printf("journal.buf.len: %d\n", len(logJournal.buf))
-	fmt.Printf("journal.xof: %d\n", logJournal.xof)
-	fmt.Printf("entries: %d\n", len(entries))
-
-	for _, entry := range entries {
-		fmt.Printf("%s\n", entry)
-	}
-	return nil
-}
-
 // log view
 func displayLog() error {
 
@@ -200,6 +197,7 @@ func displayLog() error {
 	return nil
 }
 
+// REVU: TODO move to tty.go
 func moveJustified(row uint, s string) {
 	slen := uint(len(s))
 	move(row, cols-slen+1)
@@ -217,6 +215,7 @@ func displayDatum(label, value string, row, col uint) {
 	fmt.Printf(": %s", value)
 }
 
+// REVU: TODO move to tty.go
 func fillRow(row uint, c byte) {
 	move(row, 1)
 	for col := uint(0); col < cols; col++ {
