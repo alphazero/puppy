@@ -120,11 +120,11 @@ func main() {
 
 	alertsJournal = newRingBuffer(conf.alertsJournalSize)
 	logJournal = newRingBuffer(conf.logJournalSize)
-	//	resolution := uint16(60 * conf.alertPeriodMin / conf.statPeriodSec)
-	resolution := uint16(conf.alertPeriodMin / conf.statPeriodSec) // TODO
-	accessMetrics, e = newMetrics(resolution)
+	//	snapshotsPerAlertCheck := uint16(60 * conf.alertPeriodMin / conf.statPeriodSec)
+	snapshotsPerAlertCheck := uint16(conf.alertPeriodMin / conf.statPeriodSec) // TODO
+	accessMetrics, e = newMetrics(snapshotsPerAlertCheck)
 	if e != nil {
-		stat = 10 // TODO let's clean this up ..
+		stat = 10 // TODO use consts or just -1:panics;1:error;0:ok
 		return
 	}
 
@@ -133,11 +133,6 @@ func main() {
 	// stats timer
 	stats_timer := time.NewTicker(time.Second * time.Duration(conf.statPeriodSec))
 	defer stats_timer.Stop()
-
-	// alert timer
-	//	alert_timer := time.NewTicker(time.Minute * time.Duration(conf.alertPeriodMin))
-	alert_timer := time.NewTicker(time.Second * time.Duration(conf.alertPeriodMin))
-	defer alert_timer.Stop()
 
 	/* -- signals --- */
 
@@ -168,17 +163,19 @@ func main() {
 
 	/// processing loop ////////////////////////////////////////////////////
 
+	alertChkCountdown := uint16(0)
 	refreshDisplay(true)
 	for {
 		select {
-		case <-alert_timer.C:
-			checkTraffic()
-			accessStatistic = accessMetrics.takeSnapshot()
-			refreshDisplay(false)
 		case <-stats_timer.C:
 			// note: REVU comment of the function below addresses high
 			// perofmrance concerns.
 			accessStatistic = accessMetrics.takeSnapshot()
+			alertChkCountdown++
+			if alertChkCountdown == snapshotsPerAlertCheck {
+				alertChkCountdown = 0
+				checkTraffic()
+			}
 			refreshDisplay(false)
 		case event, ok := <-ui:
 			if !ok {
