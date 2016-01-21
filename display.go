@@ -140,18 +140,26 @@ func displayDebug() error {
 	displayDatum0("conf", conf, row, 1)
 	row++
 
-	displayDatum("logJournal", logJournal.String(), row, 1)
-	row++
-
-	displayDatum("alertsJournal", alertsJournal.String(), row, 1)
-	row++
-
+	/*
+		displayDatum("logJournal", logJournal.String(), row, 1)
+		row++
+		displayDatum("alertsJournal", alertsJournal.String(), row, 1)
+		row++
+	*/
 	displayDatum0("metrics", accessMetrics, row, 1)
 	row += 5
 
-	displayDatum0("statistic", accessStatistic, row, 1)
-	row++
-
+	stats := accessStatistic
+	if stats != nil {
+		displayDatum0("statistic", stats, row, 1)
+		row++
+		displayDatum0("tot", stats.accessCnt.total, row, 1)
+		row++
+		displayDatum0("counts", stats.accessCnt, row, 1)
+		row++
+		displayDatum0("ratios", stats.accessRatio, row, 1)
+		row++
+	}
 	move(row, 1)
 	for i, v := range accessMetrics.traffic.buf {
 		fmt.Printf("[%d]: %v\n", i, v)
@@ -236,15 +244,29 @@ func stdViewHeader(view string, color int) {
 
 // stats-view
 func displayStats() error {
-	ttycmd(HOME)
+	ttycmds(HOME, CLEARSCREEN)
 	stdViewHeader("stats", 5)
 
 	//	fillRow(2, '-')
-	displayDatum("requests", "1023034801", 3, 1)
-	displayDatum("GET", "78.9%", 3, 24)
-	displayDatum("PUT", "78.9%", 3, 36)
-	displayDatum("POST", "78.9%", 3, 48)
-	displayDatum("DEL", "78.9%", 3, 61)
+	stats := accessStatistic
+	if stats == nil {
+		return nil
+	}
+	// percent formatter - ##.# precision is sufficient
+	pfmtr := func(v float64) string {
+		return fmt.Sprintf("%03.1f%%", v*100.)
+	}
+	displayDatum0("requests", stats.accessCnt.total, 3, 1)
+	displayDatum("GET", pfmtr(stats.accessRatio.gets), 3, 24)
+	displayDatum("PUT", pfmtr(stats.accessRatio.puts), 3, 36)
+	displayDatum("POST", pfmtr(stats.accessRatio.posts), 3, 48)
+	displayDatum("DEL", pfmtr(stats.accessRatio.dels), 3, 61)
+	displayDatum("OTHER", pfmtr(stats.accessRatio.other), 3, 73)
+	/*
+		displayDatum("PUT", "78.9%", 3, 36)
+		displayDatum("POST", "78.9%", 3, 48)
+		displayDatum("DEL", "78.9%", 3, 61)
+	*/
 	displayDatum("resources", "15", 4, 1)
 	displayDatum("top-resource", "/wiki", 4, 24)
 	displayDatum("users", "15", 5, 1)

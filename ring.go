@@ -50,9 +50,6 @@ func (r *ringBuffer) add(item interface{}) {
 }
 
 // return (up to max) last (FILO) entries
-// REVU: granted that for most uses of this datastructure, the ring will always
-//       be full (at capacity). That said, we really should be breaking out of
-//       the loops on the first 'nil' cell.
 func (r *ringBuffer) last(max uint) []interface{} {
 	if max > r.cap {
 		max = r.cap
@@ -61,17 +58,19 @@ func (r *ringBuffer) last(max uint) []interface{} {
 	xof := uint(0)
 	if r.xof > 0 {
 		for i := int(r.xof - 1); xof < max && i >= 0; i-- {
-			if r.buf[i] != nil {
-				arr[xof] = r.buf[i]
-				xof++
+			if r.buf[i] == nil {
+				break
 			}
-		}
-	}
-	for i := int(r.cap - 1); xof < max && i >= int(r.xof); i-- {
-		if r.buf[i] != nil {
 			arr[xof] = r.buf[i]
 			xof++
 		}
+	}
+	for i := int(r.cap - 1); xof < max && i >= int(r.xof); i-- {
+		if r.buf[i] == nil {
+			break
+		}
+		arr[xof] = r.buf[i]
+		xof++
 	}
 	return arr[:xof]
 }
@@ -110,6 +109,5 @@ func main() {
 	for n := uint(0); n <= traffic.cap; n++ {
 		fmt.Printf("%s - %v\n", traffic, traffic.last(n))
 	}
-
 }
 */

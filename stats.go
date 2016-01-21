@@ -21,10 +21,11 @@ package main
 
 import (
 	"fmt"
+	"time"
 )
 
 // General notes: this initial design of the stateful bits of puppy hasn't
-// been profiled but it is quite likely that any focus on performance should
+// been profiled but it is likely that any focus on performance should
 // start here. this initial version is aimed at simply providing the required
 // feature set for what is effectively puppy's stateful model.
 
@@ -38,13 +39,30 @@ type AccessMetrics interface {
 // ---------------------------------------------------------------------
 // access info
 
-type accessInfo struct {
-	gets, puts, posts, dels, other uint
+type accessCounter struct {
+	total, gets, puts, posts, dels, other uint
+}
+type accessRatio struct {
+	gets, puts, posts, dels, other float64
 }
 
-func (p *accessInfo) Update(access *logEntry) error {
+func (p *accessCounter) ratios() *accessRatio {
+	ratios := &accessRatio{}
+	if p.total > 0 {
+		n := float64(p.total)
+		ratios.gets = float64(p.gets) / n
+		ratios.puts = float64(p.puts) / n
+		ratios.dels = float64(p.dels) / n
+		ratios.posts = float64(p.posts) / n
+		ratios.other = float64(p.other) / n
+	}
+	//	fmt.Printf("on ratios: ptr :%d counts:%v\n", &p, p)
+	//	fmt.Printf("         : ptr :%d ratios:%v\n", &ratios, ratios)
+	return ratios
+}
+func (p *accessCounter) Update(access *logEntry) error {
 	if access == nil {
-		return fmt.Errorf("err - accessInfo.update - assert - access is nil")
+		return fmt.Errorf("err - accessCounter.update - assert - access is nil")
 	}
 	switch access.method {
 	case "GET":
@@ -58,6 +76,8 @@ func (p *accessInfo) Update(access *logEntry) error {
 	default:
 		p.other++
 	}
+	p.total++
+	//	fmt.Printf("on update: %d %v\n", &p, p)
 	return nil
 }
 
@@ -66,17 +86,16 @@ func (p *accessInfo) Update(access *logEntry) error {
 
 // meaures captures distinct data views on access information.
 type measures struct {
-	// in progress stats by resource (URI)
-	resources map[string]*accessInfo
-	users     map[string]*accessInfo
-	hosts     map[string]*accessInfo
+	resources map[string]*accessCounter
+	users     map[string]*accessCounter
+	hosts     map[string]*accessCounter
 }
 
 func newMeasures() *measures {
 	p := &measures{
-		make(map[string]*accessInfo),
-		make(map[string]*accessInfo),
-		make(map[string]*accessInfo),
+		make(map[string]*accessCounter),
+		make(map[string]*accessCounter),
+		make(map[string]*accessCounter),
 	}
 	return p
 }
@@ -85,11 +104,11 @@ func (p *measures) Update(access *logEntry) error {
 		return fmt.Errorf("err - measures.update - assert - access is nil")
 	}
 	keys := []string{access.section(), access.uri.Host, access.user}
-	maps := []map[string]*accessInfo{p.resources, p.hosts, p.users}
+	maps := []map[string]*accessCounter{p.resources, p.hosts, p.users}
 	for i, key := range keys {
 		info, ok := (maps[i])[key]
 		if !ok {
-			info = &accessInfo{}
+			info = &accessCounter{}
 			(maps[i])[key] = info
 		}
 		info.Update(access) // ok to ignore error here
@@ -98,14 +117,15 @@ func (p *measures) Update(access *logEntry) error {
 }
 
 // used to compute elements for overall traffic metrics
-func (p *measures) summarize() *accessInfo {
-	summary := &accessInfo{}
+func (p *measures) summarize() *accessCounter {
+	summary := &accessCounter{}
 	for _, entry := range p.resources {
 		summary.gets += entry.gets
 		summary.puts += entry.puts
 		summary.posts += entry.posts
 		summary.dels += entry.dels
 		summary.other += entry.other
+		summary.total += entry.total
 	}
 	return summary
 }
@@ -117,9 +137,28 @@ func (p *measures) summarize() *accessInfo {
 // On every snapshot period, the wip is finalized as 'snapshot', with
 // associated addition of a new traffic element.
 type metrics struct {
-	traffic  *ringBuffer // <*accessInfo> : accumulated periodic data
-	snapshot *measures   // immutable snapshot of last period's measure
-	wip      *measures   // in-progress measures of current period
+	traffic     *ringBuffer // <*accessCounter> : accumulated periodic data
+	snapshot    *measures   // immutable snapshot of last period's measure
+	snapshot_ts time.Time   // timestamp of snapshot update
+	wip         *measures   // in-progress measures of current period
+}
+
+type accessStats struct {
+	total    uint
+	top      string
+	topRatio float64
+}
+
+// REVU: for an extensible variant of puppy, use a map[key]value.
+type statistic struct {
+	// access counts and ratio breakdown by access method
+	accessCnt   *accessCounter
+	accessRatio *accessRatio
+
+	// stats for various access attributes
+	byResource accessStats
+	byUser     accessStats
+	byHost     accessStats
 }
 
 // limit rsolution to a reasonable 2^16 - 1.
@@ -135,9 +174,6 @@ func newMetrics(resolution uint16) (*metrics, error) {
 	return s, nil
 }
 
-func (p *metrics) String() string {
-	return fmt.Sprintf("metrics\n\t%s\n\t%v\n\t%v", p.traffic, p.snapshot, p.wip)
-}
 func (p *metrics) Update(access *logEntry) error {
 	if access == nil {
 		return fmt.Errorf("err - metrics.update - assert - access is nil")
@@ -147,16 +183,36 @@ func (p *metrics) Update(access *logEntry) error {
 
 // called periodically to take snapshot of running measures and
 // update the overall traffic metrics.
-func (p *metrics) takeSnapshot() *metrics {
-	p.snapshot = p.wip
-	p.wip = newMeasures()
-	p.traffic.add(p.snapshot.summarize())
+//
+// REVU: for concurrent version, an sync hand-off in conjunction with addition of
+//       a serialization point (e.g. mutext) would address requirements for
+//       a high performance version. It is not strictly necessary to return a
+//       future in that case but obviously no longer returning a statistic ref.
+func (p *metrics) takeSnapshot() *statistic {
 
-	return p
+	// update metrics with collected data in wip
+	p.snapshot = p.wip
+	p.snapshot_ts = time.Now()
+	p.wip = newMeasures()
+	accessCnt := p.snapshot.summarize()
+	p.traffic.add(accessCnt)
+
+	// compute the stats for the snapshot
+	//
+	// in the simple case this boils down to sorting the
+	// access info by uri and other attributes (in this case user and host).
+	stats := &statistic{}
+	stats.accessCnt = accessCnt
+	stats.accessRatio = accessCnt.ratios()
+
+	// traffic data in general
+
+	// sort by resource address and compute
+	return stats
 }
 
-func (p *metrics) analysis() *statistic {
-	return nil
+func (p *metrics) String() string {
+	return fmt.Sprintf("metrics\n\t%s\n\t%v\n\t%v", p.traffic, p.snapshot, p.wip)
 }
 
 /*
@@ -171,62 +227,6 @@ func (v ByRequests) Swap(i, j int) {
 func (v ByRequests) Less(i, j int) bool {
 	return v[i].requests < v[j].requests
 }
-
-// Resource specific stats
-type resourceStats struct {
-	name  string
-	stats requestStats
-}
-
-func (p resourceStats) update(requestLog *logEntry) {
-	p.stats.requests++
-	switch requestLog.method {
-	case "GET":
-		p.stats.gets++
-	case "PUT":
-		p.stats.puts++
-	case "POST":
-		p.stats.posts++
-	case "DEL":
-		p.stats.dels++
-	default:
-		p.stats.other++
-	}
-}
-
-type resourceStatsMap map[string]*resourceStats
-type accessStats struct {
-	resources map[string]*resourceStats
-	users     map[string]int
-	hosts     map[string]int
-}
-
-func newResourceStatsMap() resourceStatsMap {
-	rsm := make(map[string]*resourceStats)
-	return rsm
-}
-
-func (p resourceStatsMap) update(requestLog *logEntry) {
-	section := requestLog.section()
-	resStats, ok := p[section]
-	if !ok {
-		resStats = &resourceStats{name: section}
-		p[section] = resStats
-	}
-	resStats.update(requestLog)
-}
-*/
-// REVU TODO traffic should use this
-type statistic struct {
-	total   accessInfo
-	users   uint
-	topUser string
-	hosts   uint
-	topHost string
-	//	resources []*resourceStats // REVU: this data is already in metrics.snapshot
-}
-
-/*
 func (p resourceStatsMap) analyze() *statsAnalysis {
 	sa := &statsAnalysis{}
 

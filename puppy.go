@@ -152,7 +152,9 @@ func main() {
 	for {
 		select {
 		case <-stats_timer.C:
-			accessStatistic = accessMetrics.takeSnapshot().analysis()
+			// note: REVU comment of the function below addresses high
+			// perofmrance concerns.
+			accessStatistic = accessMetrics.takeSnapshot()
 			refreshDisplay(false)
 		case <-alert_timer.C:
 			// TODO III - current-alert
