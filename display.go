@@ -173,7 +173,17 @@ func displayAlerts() error {
 	ttycmd(HOME)
 	stdViewHeader("alerts", 1)
 
-	move(rows, cols)
+	entries := alertsJournal.last(rows - 3)
+
+	/* view port */
+	for n := uint(1); n <= uint(len(entries)); n++ {
+		move(rows-n, 1)
+		ttycmd(CLEARLINE)
+		fmt.Printf("%s", entries[n-1])
+	}
+	ttycmd(NORMTEXT)
+
+	stdViewFooter()
 	return nil
 }
 
@@ -190,17 +200,18 @@ func displayLog() error {
 		move(rows-n, 1)
 		ttycmd(CLEARLINE)
 		fmt.Printf("%s", entries[n-1])
-		//	fmt.Printf("   %d", n)
 	}
 	ttycmd(NORMTEXT)
 
-	move(rows, 1)
-	ttycmd("[40;92;7m")
-	fmt.Printf("sce-tail")
-	ttycmd("[40;93;7m")
-	ttycmd(NORMTEXT)
-	ttyfmt(" My Love                                                          ", BOLD)
-
+	stdViewFooter()
+	/*
+		move(rows, 1)
+		ttycmd("[40;92;7m")
+		fmt.Printf("sce-tail")
+		ttycmd("[40;93;7m")
+		ttycmd(NORMTEXT)
+		ttyfmt(" My Love                                                          ", BOLD)
+	*/
 	move(rows, cols)
 	return nil
 }
@@ -231,6 +242,42 @@ func fillRow(row uint, c byte) {
 	}
 }
 
+// F,B color
+// norm:
+// alert:
+// recovered:
+func stdViewFooter() {
+	move(rows, 1)
+	ttycmd(codefmt(FGCOLOR, 3))
+	ttycmd(codefmt(BGCOLOR, 7))
+	fillRow(rows, ' ')
+	move(rows, 1)
+	switch {
+	case activeAlert == nil:
+	case activeAlert.typ == alertRaised:
+		ttyfmt(" ALERT ", BOLD, codefmt(BGCOLOR, 1), codefmt(FGCOLOR, 8))
+	case activeAlert.typ == alertRecovered:
+		ttyfmt(" ALERT ", BOLD, codefmt(BGCOLOR, 1), codefmt(FGCOLOR, 8))
+	}
+	/* ALERT */
+	ttyfmt(" ALERT ", BOLD, codefmt(BGCOLOR, 1), codefmt(FGCOLOR, 8))
+
+	a, _ := newAlert(1234, time.Now())
+	ttycmd(codefmt(FGCOLOR, 1))
+	ttycmd(codefmt(BGCOLOR, 7))
+	ttycmd(BOLD)
+	lim := min(uint(len(a.String())), cols-9)
+	fmt.Printf(" %s", a.String()[:lim])
+
+	move(rows, cols)
+	ttycmd(NORMTEXT)
+}
+func min(a, b uint) uint {
+	if a > b {
+		return b
+	}
+	return a
+}
 func stdViewHeader(view string, color int) {
 	tstr := time.Now().String()[:19]
 
@@ -247,33 +294,38 @@ func displayStats() error {
 	ttycmds(HOME, CLEARSCREEN)
 	stdViewHeader("stats", 5)
 
-	//	fillRow(2, '-')
+	/// snapshot head-ups summary ///////////////////////////////////////
+
 	stats := accessStatistic
-	if stats == nil {
+	if stats == nil { // TODO: init accessStatistic with zval and remove this check
 		return nil
 	}
 	// percent formatter - ##.# precision is sufficient
 	pfmtr := func(v float64) string {
 		return fmt.Sprintf("%03.1f%%", v*100.)
 	}
+	/* traffic summary */
 	displayDatum0("requests", stats.accessCnt.total, 3, 1)
 	displayDatum("GET", pfmtr(stats.accessRatio.gets), 3, 24)
 	displayDatum("PUT", pfmtr(stats.accessRatio.puts), 3, 36)
 	displayDatum("POST", pfmtr(stats.accessRatio.posts), 3, 48)
 	displayDatum("DEL", pfmtr(stats.accessRatio.dels), 3, 61)
 	displayDatum("OTHER", pfmtr(stats.accessRatio.other), 3, 73)
-	/*
-		displayDatum("PUT", "78.9%", 3, 36)
-		displayDatum("POST", "78.9%", 3, 48)
-		displayDatum("DEL", "78.9%", 3, 61)
-	*/
+	/* aggregate and specific active resource, user, and host */
 	displayDatum("resources", "15", 4, 1)
 	displayDatum("top-resource", "/wiki", 4, 24)
 	displayDatum("users", "15", 5, 1)
 	displayDatum("top-user", "alphazero", 5, 24)
 	displayDatum("hosts", "9", 6, 1)
 	displayDatum("top-host", "192.232.1.3", 6, 24)
-	fillRow(7, '-')
+
+	fillRow(7, '-') /* REVU: let's go fully reto and draw lines */
+
+	/// access by attribute /////////////////////////////////////////////
+
+	// REVU TODO tri-state flag in {resource, user, host} with default
+	//      TODO in which case factor our the generic table renderer
+	/* table header */
 	move(8, 1)
 	ttyfmt("req %%", BOLD, UNDERLINE)
 	move(8, 10)
@@ -282,6 +334,7 @@ func displayStats() error {
 	ttyfmt("resource", BOLD, UNDERLINE)
 
 	/* view port */
+	// TODO accessMetrics.snapshot.users (map[string]accessCounter)
 	t0 := time.Now().UnixNano()
 	for n := uint(9); n <= rows-2; n++ {
 		move(n, 1)
@@ -294,6 +347,7 @@ func displayStats() error {
 	}
 	ttycmd(NORMTEXT)
 
+	/* standard footer */
 	move(rows, 1)
 	ttycmd("[40;92;7m")
 	fmt.Printf("sce-tail")
@@ -301,6 +355,6 @@ func displayStats() error {
 	ttycmd(NORMTEXT)
 	ttyfmt(" My Love                                                          ", BOLD)
 
-	move(rows, cols)
+	stdViewFooter()
 	return nil
 }

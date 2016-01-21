@@ -61,8 +61,15 @@ func cleanup() {
 // maintain a sliding window of tail emits
 var logJournal *ringBuffer
 
-// maintain a sliding window of alerts
+// maintain a sliding window of alerts notices.
 var alertsJournal *ringBuffer
+
+// maintain reference to last period's alert notice. Reminder that alert notices
+// are in {alertRaised, alertRecovered}. This reference may be nil, indicating
+// no standing (un-recovered) alert is in effect, keeping in mind that if an alert
+// condition is not recovered in the current cycle, a new alert will be raised
+// and referenced here.
+var activeAlert *alert
 
 // collect resource specific periodic. We'll accumulate data for each
 // cycle (c.f. conf.statPeriodSec) and then compute the snapshot analysis.
