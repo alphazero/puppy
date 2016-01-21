@@ -42,6 +42,9 @@ func nextAlertId() (id uint16) {
 	return
 }
 
+// ----------------------------------------------------------------------
+// supporting type
+
 // REVU: possibly better named as alertNotice.
 //
 // structure encapsulates a notice regarding an alert (raised or recovered).
@@ -76,12 +79,16 @@ func newAlert(reqcnt uint, ts time.Time) (*alert, error) {
 // input arg is zero-value.
 func (p *alert) recovered(ts time.Time) (*alert, error) {
 	if p.typ == alertRecovered {
-		return nil, fmt.Errorf("bug - alert.recovered - invalid - receiver is not a raised alert")
+		return nil, fmt.Errorf(
+			"bug - alert.recovered - invalid - receiver is not a raised alert")
 	}
 	if ts.IsZero() {
-		return nil, fmt.Errorf("bug - alert.recovered - assert - timestamp is zero-value")
+		return nil, fmt.Errorf(
+			"bug - alert.recovered - assert - timestamp is zero-value")
 	}
 	fmtstr := "Alert {%d} recovered at {%s}"
-	msg := fmt.Sprintf(fmtstr, p.id, ts.Format(time.RFC3339)) // REVU: may want to use same format for view headers.
+	msg := fmt.Sprintf(fmtstr, p.id, ts.Format(time.RFC3339))
+	// REVU: may want to use same format for view headers.
+
 	return &alert{p.id, alertRecovered, ts, msg}, nil
 }
