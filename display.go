@@ -242,33 +242,32 @@ func fillRow(row uint, c byte) {
 	}
 }
 
-// F,B color
-// norm:
-// alert:
-// recovered:
 func stdViewFooter() {
 	move(rows, 1)
 	ttycmd(codefmt(FGCOLOR, 3))
 	ttycmd(codefmt(BGCOLOR, 7))
 	fillRow(rows, ' ')
 	move(rows, 1)
+
+	// active alert status must be always visible
 	switch {
 	case activeAlert == nil:
+		ttyfmt(" RELAX ", BOLD, codefmt(BGCOLOR, 2), codefmt(FGCOLOR, 7))
 	case activeAlert.typ == alertRaised:
 		ttyfmt(" ALERT ", BOLD, codefmt(BGCOLOR, 1), codefmt(FGCOLOR, 8))
+		ttycmd(codefmt(FGCOLOR, 0))
+		ttycmd(codefmt(BGCOLOR, 7))
+		ttycmd(BOLD)
+		lim := min(uint(len(activeAlert.String())), cols-9)
+		fmt.Printf(" %s", activeAlert.String()[:lim])
 	case activeAlert.typ == alertRecovered:
-		ttyfmt(" ALERT ", BOLD, codefmt(BGCOLOR, 1), codefmt(FGCOLOR, 8))
+		ttyfmt(" RECOV ", BOLD, codefmt(BGCOLOR, 5), codefmt(FGCOLOR, 7))
+		ttycmd(codefmt(FGCOLOR, 0))
+		ttycmd(codefmt(BGCOLOR, 7))
+		ttycmd(BOLD)
+		lim := min(uint(len(activeAlert.String())), cols-9)
+		fmt.Printf(" %s", activeAlert.String()[:lim])
 	}
-	/* ALERT */
-	ttyfmt(" ALERT ", BOLD, codefmt(BGCOLOR, 1), codefmt(FGCOLOR, 8))
-
-	a, _ := newAlert(1234, time.Now())
-	ttycmd(codefmt(FGCOLOR, 1))
-	ttycmd(codefmt(BGCOLOR, 7))
-	ttycmd(BOLD)
-	lim := min(uint(len(a.String())), cols-9)
-	fmt.Printf(" %s", a.String()[:lim])
-
 	move(rows, cols)
 	ttycmd(NORMTEXT)
 }
