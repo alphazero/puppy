@@ -131,6 +131,7 @@ func scrollView(event uiEvent) error {
 // ----------------------------------------------------------------------
 // views
 
+// TODO: clean this up or retire it
 func displayDebug() error {
 	cls()
 	ttycmd(HOME)
@@ -140,12 +141,6 @@ func displayDebug() error {
 	displayDatum0("conf", conf, row, 1)
 	row++
 
-	/*
-		displayDatum("logJournal", logJournal.String(), row, 1)
-		row++
-		displayDatum("alertsJournal", alertsJournal.String(), row, 1)
-		row++
-	*/
 	displayDatum0("metrics", accessMetrics, row, 1)
 	row += 5
 
@@ -166,126 +161,6 @@ func displayDebug() error {
 	}
 	move(rows, cols)
 	return nil
-}
-
-// alerts view
-func displayAlerts() error {
-	ttycmd(HOME)
-	stdViewHeader("alerts", 1)
-
-	entries := alertsJournal.last(rows - 3)
-
-	/* view port */
-	for n := uint(1); n <= uint(len(entries)); n++ {
-		move(rows-n, 1)
-		ttycmd(CLEARLINE)
-		fmt.Printf("%s", entries[n-1])
-	}
-	ttycmd(NORMTEXT)
-
-	stdViewFooter()
-	return nil
-}
-
-// log view
-func displayLog() error {
-
-	ttycmd(HOME)
-	stdViewHeader("log", 4)
-
-	entries := logJournal.last(rows - 3)
-
-	/* view port */
-	for n := uint(1); n <= uint(len(entries)); n++ {
-		move(rows-n, 1)
-		ttycmd(CLEARLINE)
-		fmt.Printf("%s", entries[n-1])
-	}
-	ttycmd(NORMTEXT)
-
-	stdViewFooter()
-	/*
-		move(rows, 1)
-		ttycmd("[40;92;7m")
-		fmt.Printf("sce-tail")
-		ttycmd("[40;93;7m")
-		ttycmd(NORMTEXT)
-		ttyfmt(" My Love                                                          ", BOLD)
-	*/
-	move(rows, cols)
-	return nil
-}
-
-// REVU: TODO move to tty.go
-func moveJustified(row uint, s string) {
-	slen := uint(len(s))
-	move(row, cols-slen+1)
-}
-
-func displayDatum0(label string, v interface{}, row, col uint) {
-	displayDatum(label, fmt.Sprintf("%v", v), row, col)
-}
-
-func displayDatum(label, value string, row, col uint) {
-	move(row, col)
-	ttycmd(BOLD)
-	fmt.Printf("%s", label)
-	ttycmd(NORMTEXT)
-	fmt.Printf(": %s", value)
-}
-
-// REVU: TODO move to tty.go
-func fillRow(row uint, c byte) {
-	move(row, 1)
-	for col := uint(0); col < cols; col++ {
-		fmt.Printf("%c", c)
-	}
-}
-
-func stdViewFooter() {
-	move(rows, 1)
-	ttycmd(codefmt(FGCOLOR, 3))
-	ttycmd(codefmt(BGCOLOR, 7))
-	fillRow(rows, ' ')
-	move(rows, 1)
-
-	// active alert status must be always visible
-	switch {
-	case activeAlert == nil:
-		ttyfmt(" RELAX ", BOLD, codefmt(BGCOLOR, 2), codefmt(FGCOLOR, 7))
-	case activeAlert.typ == alertRaised:
-		ttyfmt(" ALERT ", BOLD, codefmt(BGCOLOR, 1), codefmt(FGCOLOR, 8))
-		ttycmd(codefmt(FGCOLOR, 0))
-		ttycmd(codefmt(BGCOLOR, 7))
-		ttycmd(BOLD)
-		lim := min(uint(len(activeAlert.String())), cols-9)
-		fmt.Printf(" %s", activeAlert.String()[:lim])
-	case activeAlert.typ == alertRecovered:
-		ttyfmt(" RECOV ", BOLD, codefmt(BGCOLOR, 5), codefmt(FGCOLOR, 7))
-		ttycmd(codefmt(FGCOLOR, 0))
-		ttycmd(codefmt(BGCOLOR, 7))
-		ttycmd(BOLD)
-		lim := min(uint(len(activeAlert.String())), cols-9)
-		fmt.Printf(" %s", activeAlert.String()[:lim])
-	}
-	move(rows, cols)
-	ttycmd(NORMTEXT)
-}
-func min(a, b uint) uint {
-	if a > b {
-		return b
-	}
-	return a
-}
-func stdViewHeader(view string, color int) {
-	tstr := time.Now().String()[:19]
-
-	ttyfmt(view, BOLD, codefmt(BGCOLOR, 8), codefmt(FGCOLOR, color))
-	move(1, 8)
-	ttyfmt(conf.fname, BOLD)
-	moveJustified(1, tstr)
-	ttyfmt(tstr, BOLD, codefmt(FGCOLOR, 7))
-	fillRow(2, '-')
 }
 
 // stats-view
@@ -356,4 +231,103 @@ func displayStats() error {
 
 	stdViewFooter()
 	return nil
+}
+
+// alerts view
+func displayAlerts() error {
+	ttycmd(HOME)
+	stdViewHeader("alerts", 1)
+
+	entries := alertsJournal.last(rows - 3)
+
+	/* view port */
+	for n := uint(1); n <= uint(len(entries)); n++ {
+		move(rows-n, 1)
+		ttycmd(CLEARLINE)
+		fmt.Printf("%s", entries[n-1])
+	}
+	ttycmd(NORMTEXT)
+
+	stdViewFooter()
+	return nil
+}
+
+// log view
+func displayLog() error {
+
+	ttycmd(HOME)
+	stdViewHeader("log", 4)
+
+	entries := logJournal.last(rows - 3)
+
+	/* view port */
+	for n := uint(1); n <= uint(len(entries)); n++ {
+		move(rows-n, 1)
+		ttycmd(CLEARLINE)
+		fmt.Printf("%s", entries[n-1])
+	}
+	ttycmd(NORMTEXT)
+
+	stdViewFooter()
+	return nil
+}
+
+func displayDatum0(label string, v interface{}, row, col uint) {
+	displayDatum(label, fmt.Sprintf("%v", v), row, col)
+}
+
+func displayDatum(label, value string, row, col uint) {
+	move(row, col)
+	ttycmd(BOLD)
+	fmt.Printf("%s", label)
+	ttycmd(NORMTEXT)
+	fmt.Printf(": %s", value)
+}
+
+func stdViewFooter() {
+	move(rows, 1)
+	ttycmd(codefmt(FGCOLOR, 3))
+	ttycmd(codefmt(BGCOLOR, 7))
+	fillRow(rows, ' ')
+	move(rows, 1)
+
+	// active alert status must be always visible
+	switch {
+	case activeAlert == nil:
+		ttyfmt(" RELAX ", BOLD, codefmt(BGCOLOR, 2), codefmt(FGCOLOR, 7))
+	case activeAlert.typ == alertRaised:
+		ttyfmt(" ALERT ", BOLD, codefmt(BGCOLOR, 1), codefmt(FGCOLOR, 8))
+		ttycmd(codefmt(FGCOLOR, 0))
+		ttycmd(codefmt(BGCOLOR, 7))
+		ttycmd(BOLD)
+		lim := min(uint(len(activeAlert.String())), cols-9)
+		fmt.Printf(" %s", activeAlert.String()[:lim])
+	case activeAlert.typ == alertRecovered:
+		ttyfmt(" RECOV ", BOLD, codefmt(BGCOLOR, 5), codefmt(FGCOLOR, 7))
+		ttycmd(codefmt(FGCOLOR, 0))
+		ttycmd(codefmt(BGCOLOR, 7))
+		ttycmd(BOLD)
+		lim := min(uint(len(activeAlert.String())), cols-9)
+		fmt.Printf(" %s", activeAlert.String()[:lim])
+	}
+	move(rows, cols)
+	ttycmd(NORMTEXT)
+}
+
+func stdViewHeader(view string, color int) {
+	tstr := time.Now().String()[:19]
+
+	ttyfmt(view, BOLD, codefmt(BGCOLOR, 8), codefmt(FGCOLOR, color))
+	move(1, 8)
+	ttyfmt(conf.fname, BOLD)
+	moveJustified(1, tstr)
+	ttyfmt(tstr, BOLD, codefmt(FGCOLOR, 7))
+	fillRow(2, '-')
+}
+
+func min(a, b uint) uint {
+	if a > b {
+		return b
+	}
+	return a
 }

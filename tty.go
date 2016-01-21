@@ -169,6 +169,18 @@ func move(row, col uint) { ttycmdf(MOVE, row, col) }
 func fgcolor(col uint)   { ttycmdf(FGCOLOR, col) }
 func bgcolor(col uint)   { ttycmdf(FGCOLOR, col) }
 
+func moveJustified(row uint, s string) {
+	slen := uint(len(s))
+	move(row, cols-slen+1)
+}
+
+func fillRow(row uint, c byte) {
+	move(row, 1)
+	for col := uint(0); col < cols; col++ {
+		fmt.Printf("%c", c)
+	}
+}
+
 // text is always restored to NORMTEXT on return
 func ttyfmt(s string, codes ...code) {
 	ttycmds(codes...)
