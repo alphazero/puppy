@@ -36,7 +36,7 @@ var conf = struct {
 	statPeriodSec, alertPeriodMin     uint
 	logJournalSize, alertsJournalSize uint
 }{
-	"", 100, 10000, 1, 5, 1024, 1024,
+	"", 100, 10000, 1, 1, 1024, 1024,
 }
 
 func init() {
@@ -96,6 +96,14 @@ func main() {
 		os.Exit(*stat0)
 	}(&stat, &e)
 
+	defer func(stat0 *int, e0 *error) {
+		p := recover()
+		if p != nil {
+			log.Printf("panic - recovered: %v\n", p)
+			*e0 = fmt.Errorf("panic - %v ", p)
+			*stat0 = -1
+		}
+	}(&stat, &e)
 	/// config & setup /////////////////////////////////////////////////////
 
 	flag.Parse()
@@ -109,7 +117,7 @@ func main() {
 
 	alertsJournal = newRingBuffer(conf.alertsJournalSize)
 	logJournal = newRingBuffer(conf.logJournalSize)
-	resolution := uint16(conf.alertPeriodMin / conf.statPeriodSec)
+	resolution := uint16(60 * conf.alertPeriodMin / conf.statPeriodSec)
 	accessMetrics, e = newMetrics(resolution)
 	if e != nil {
 		stat = 10 // TODO let's clean this up ..
@@ -158,13 +166,14 @@ func main() {
 	refreshDisplay(true)
 	for {
 		select {
+		case <-alert_timer.C:
+			checkTraffic()
+			accessStatistic = accessMetrics.takeSnapshot()
+			refreshDisplay(false)
 		case <-stats_timer.C:
 			// note: REVU comment of the function below addresses high
 			// perofmrance concerns.
 			accessStatistic = accessMetrics.takeSnapshot()
-			refreshDisplay(false)
-		case <-alert_timer.C:
-			// TODO III - current-alert
 			refreshDisplay(false)
 		case event, ok := <-ui:
 			if !ok {
@@ -229,4 +238,32 @@ func selfSignal(s os.Signal) error {
 		return e
 	}
 	return proc.Signal(s)
+}
+
+// checks total traffic for the sliding time window and
+// updates activeAlert per results.
+func checkTraffic() {
+	var total uint
+	counts := accessMetrics.traffic.items()
+	for _, obj := range counts {
+		total += obj.(*accessCounter).total
+	}
+
+	cls()
+	ttycmd(HOME)
+	fmt.Fprintf(os.Stderr, "made it")
+
+	// all ok. Did we recover or has it been blue skies all along?
+	if total < conf.trafficLimitHigh {
+		if activeAlert != nil && activeAlert.typ == alertRaised {
+			activeAlert, _ = activeAlert.recovered(time.Now())
+		} else {
+			activeAlert = nil
+		}
+		return
+	}
+
+	// raise alert
+	activeAlert, _ = newAlert(total, time.Now()) /* safe to not check error here */
+	return
 }
