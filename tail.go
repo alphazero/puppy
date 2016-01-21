@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"os/exec"
 )
 
@@ -67,6 +68,12 @@ func tail(fname string) (*tailProc, error) {
 	}
 	if fname == "" {
 		return withError("tail - fname is nil")
+	}
+	finfo, e := os.Stat(fname)
+	if e != nil {
+		return withError(fmt.Sprintf("ERR - tail - %s", e.Error()))
+	} else if finfo.IsDir() {
+		return withError(fmt.Sprintf("ERR - tail - %s is a directory", fname))
 	}
 
 	tailcmd := exec.Command("tail", "-F", fname)
