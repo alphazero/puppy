@@ -186,12 +186,12 @@ func displayStats() error {
 	displayDatum("DEL", pfmtr(stats.accessRatio.dels), 3, 61)
 	displayDatum("OTHER", pfmtr(stats.accessRatio.other), 3, 73)
 	/* aggregate and specific active resource, user, and host */
-	displayDatum("resources", "15", 4, 1)
-	displayDatum("top-resource", "/wiki", 4, 24)
-	displayDatum("users", "15", 5, 1)
-	displayDatum("top-user", "alphazero", 5, 24)
-	displayDatum("hosts", "9", 6, 1)
-	displayDatum("top-host", "192.232.1.3", 6, 24)
+	displayDatum0("resources", stats.byResource.total, 4, 1)
+	displayDatum("top-resource", stats.byResource.top, 4, 24)
+	displayDatum0("users", stats.byUser.total, 5, 1)
+	displayDatum("top-user", stats.byUser.top, 5, 24)
+	displayDatum0("hosts", stats.byHost.total, 6, 1)
+	displayDatum("top-host", stats.byHost.top, 6, 24)
 
 	fillRow(7, '-') /* REVU: let's go fully reto and draw lines */
 
@@ -207,19 +207,26 @@ func displayStats() error {
 	move(8, 21)
 	ttyfmt("resource", BOLD, UNDERLINE)
 
+	// view data
+	// REVU: for now resource but nice TODO is to
+	//       add cmds to switch attribute of interest
+	inOrder := stats.byResource.inOrder
+
 	/* view port */
-	// TODO accessMetrics.snapshot.users (map[string]accessCounter)
-	t0 := time.Now().UnixNano()
-	for n := uint(9); n <= rows-2; n++ {
-		move(n, 1)
+	cnt := uint(len(inOrder))
+	xof := cnt - 1
+	sak := uint(9)                // scroll adjust faktor
+	viewportLim := rows - sak - 2 // for footer (i.e. 2)
+	lim := min(viewportLim, cnt)
+	for n := uint(0); n < lim; n++ {
+		move(n+sak, 1)
 		ttycmd(CLEARLINE)
 		ttycmd(NORMTEXT)
-		if time.Now().UnixNano()%0x7 == 0 {
-			fgcolor(1)
-		}
-		fmt.Printf("%d | %2d", t0+int64(n), n)
+		item := inOrder[xof-n]
+		itemTotal := item.counter.total
+		itemRatio := float64(itemTotal) / float64(stats.accessCnt.total)
+		fmt.Printf("%5s  %9d    %s", pfmtr(itemRatio), itemTotal, item.name)
 	}
-	ttycmd(NORMTEXT)
 
 	/* standard footer */
 	move(rows, 1)
