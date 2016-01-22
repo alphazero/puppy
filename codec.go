@@ -43,9 +43,16 @@ type logEntry struct {
 	uri        *url.URL
 }
 
-// REVU: BUG: TODO is getting the actual so-called section.
 func (p *logEntry) section() string {
-	return fmt.Sprintf("%s://%s/%s", p.uri.Scheme, p.uri.Host, p.uri.Path)
+	path := p.uri.Path
+	if len(path) > 2 {
+		for i, b := range []byte(path)[1:] {
+			if b == '/' {
+				return path[:i+1]
+			}
+		}
+	}
+	return path
 }
 
 // function attempts parse of provided line.
