@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"time"
 )
 
@@ -56,8 +57,6 @@ func (p *accessCounter) ratios() *accessRatio {
 		ratios.posts = float64(p.posts) / n
 		ratios.other = float64(p.other) / n
 	}
-	//	fmt.Printf("on ratios: ptr :%d counts:%v\n", &p, p)
-	//	fmt.Printf("         : ptr :%d ratios:%v\n", &ratios, ratios)
 	return ratios
 }
 func (p *accessCounter) Update(access *logEntry) error {
@@ -77,9 +76,18 @@ func (p *accessCounter) Update(access *logEntry) error {
 		p.other++
 	}
 	p.total++
-	//	fmt.Printf("on update: %d %v\n", &p, p)
 	return nil
 }
+
+type namedCounter struct {
+	name    string
+	counter *accessCounter
+}
+type ByTotal []namedCounter
+
+func (a ByTotal) Len() int           { return len(a) }
+func (a ByTotal) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByTotal) Less(i, j int) bool { return a[i].counter.total < a[j].counter.total }
 
 // ---------------------------------------------------------------------
 // measures
@@ -103,7 +111,7 @@ func (p *measures) Update(access *logEntry) error {
 	if access == nil {
 		return fmt.Errorf("err - measures.update - assert - access is nil")
 	}
-	keys := []string{access.section(), access.uri.Host, access.user}
+	keys := []string{access.section(), access.remoteHost, access.user}
 	maps := []map[string]*accessCounter{p.resources, p.hosts, p.users}
 	for i, key := range keys {
 		info, ok := (maps[i])[key]
@@ -130,6 +138,40 @@ func (p *measures) summarize() *accessCounter {
 	return summary
 }
 
+// panics
+func (p *measures) statsBy(attribute string) *accessStats {
+	var data map[string]*accessCounter
+	//	var column []namedCounter
+	var stats accessStats
+
+	switch attribute {
+	case "user":
+		data = p.users
+	case "host":
+		data = p.hosts
+	case "resource":
+		data = p.resources
+	default:
+		panic(fmt.Sprintf("bug - measures.statsBy - unknown attribute %s", attribute))
+	}
+	stats.total = uint(len(data))
+	stats.inOrder = make([]namedCounter, stats.total) // make it regardless of len
+	if stats.total == 0 {
+		return &stats
+	}
+
+	i := 0
+	for key, counter := range data {
+		stats.inOrder[i] = namedCounter{key, counter}
+		i++
+	}
+	sort.Sort(ByTotal(stats.inOrder))
+	stats.top = stats.inOrder[len(data)-1].name
+	stats.topRatio = float64(stats.inOrder[len(data)-1].counter.total) / float64(stats.total)
+
+	return &stats
+}
+
 // ---------------------------------------------------------------------
 // metrics
 
@@ -147,6 +189,7 @@ type accessStats struct {
 	total    uint
 	top      string
 	topRatio float64
+	inOrder  []namedCounter
 }
 
 // REVU: for an extensible variant of puppy, use a map[key]value.
@@ -156,9 +199,9 @@ type statistic struct {
 	accessRatio *accessRatio
 
 	// stats for various access attributes
-	byResource accessStats
-	byUser     accessStats
-	byHost     accessStats
+	byResource *accessStats
+	byUser     *accessStats
+	byHost     *accessStats
 }
 
 // limit rsolution to a reasonable 2^16 - 1.
@@ -182,12 +225,14 @@ func (p *metrics) Update(access *logEntry) error {
 }
 
 // called periodically to take snapshot of running measures and
-// update the overall traffic metrics.
+// update the overall traffic metrics. this function will panic on detected
+// bugs.
 //
-// REVU: for concurrent version, an sync hand-off in conjunction with addition of
+// REVU: for concurrent version, async hand-off in conjunction with addition of
 //       a serialization point (e.g. mutext) would address requirements for
 //       a high performance version. It is not strictly necessary to return a
 //       future in that case but obviously no longer returning a statistic ref.
+//
 func (p *metrics) takeSnapshot() *statistic {
 
 	// update metrics with collected data in wip
@@ -200,10 +245,15 @@ func (p *metrics) takeSnapshot() *statistic {
 	// compute the stats for the snapshot
 	//
 	// in the simple case this boils down to sorting the
-	// access info by uri and other attributes (in this case user and host).
+	// access info  uri and other attributes (in this case user and host).
 	stats := &statistic{}
 	stats.accessCnt = accessCnt
 	stats.accessRatio = accessCnt.ratios()
+
+	//	stats.byResource.total = uint(len(p.snapshot.resources))
+	stats.byResource = p.snapshot.statsBy("resource")
+	stats.byUser = p.snapshot.statsBy("user")
+	stats.byHost = p.snapshot.statsBy("host")
 
 	// traffic data in general
 
@@ -214,35 +264,3 @@ func (p *metrics) takeSnapshot() *statistic {
 func (p *metrics) String() string {
 	return fmt.Sprintf("metrics\n\t%s\n\t%v\n\t%v", p.traffic, p.snapshot, p.wip)
 }
-
-/*
-type ByRequests []*requestStats
-
-func (v ByRequests) Len() int {
-	return len(v)
-}
-func (v ByRequests) Swap(i, j int) {
-	v[i], v[j] = v[j], v[i]
-}
-func (v ByRequests) Less(i, j int) bool {
-	return v[i].requests < v[j].requests
-}
-func (p resourceStatsMap) analyze() *statsAnalysis {
-	sa := &statsAnalysis{}
-
-	sa.resources = make([]*resourceStats, len(p))
-	//	users := make(map[string]int)
-	//	hosts := make(map[string]int)
-	var i int
-	for id, rs := range p {
-		sa.resources[i] = rs
-		//		users[rs.user] = users[rs.user] + 1
-		//		hosts[rs.host] = hosts[rs.host] + 1
-		i++
-	}
-	// sorts by total request count
-	sort.Sort(ByRequests(sa.resources))
-
-	return sa
-}
-*/
