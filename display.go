@@ -208,15 +208,13 @@ func displayStats() error {
 	ttyfmt("resource", BOLD, UNDERLINE)
 
 	// view data
-	// REVU: for now resource but nice TODO is to
-	//       add cmds to switch attribute of interest
 	inOrder := stats.byResource.inOrder
 
 	/* view port */
 	cnt := uint(len(inOrder))
 	xof := cnt - 1
-	sak := uint(9)                // scroll adjust faktor
-	viewportLim := rows - sak - 2 // for footer (i.e. 2)
+	sak := uint(9) // scroll adjust faktor
+	viewportLim := rows - sak
 	lim := min(viewportLim, cnt)
 	for n := uint(0); n < lim; n++ {
 		move(n+sak, 1)
@@ -229,13 +227,6 @@ func displayStats() error {
 	}
 
 	/* standard footer */
-	move(rows, 1)
-	ttycmd("[40;92;7m")
-	fmt.Printf("sce-tail")
-	ttycmd("[40;93;7m")
-	ttycmd(NORMTEXT)
-	ttyfmt(" My Love                                                          ", BOLD)
-
 	stdViewFooter()
 	return nil
 }
